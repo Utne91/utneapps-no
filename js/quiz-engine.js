@@ -9,8 +9,17 @@ export function shuffle(items, random = Math.random) {
 
 export function createRound(quiz, random = Math.random) {
   const count = Math.min(quiz.questionCount || quiz.questions.length, quiz.questions.length);
-  return shuffle(quiz.questions, random).slice(0, count).map((item) => ({
-    ...item,
-    answers: shuffle([item.correct, ...item.wrong], random)
-  }));
+  const questions = shuffle(quiz.questions, random).slice(0, count);
+  const correctPositions = [];
+  while (correctPositions.length < count) {
+    correctPositions.push(...shuffle([0, 1, 2, 3], random));
+  }
+  correctPositions.length = count;
+  const balancedPositions = shuffle(correctPositions, random);
+
+  return questions.map((item, index) => {
+    const answers = shuffle(item.wrong, random);
+    answers.splice(balancedPositions[index], 0, item.correct);
+    return { ...item, answers };
+  });
 }

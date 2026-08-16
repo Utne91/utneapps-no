@@ -1,7 +1,7 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js";
 
 const LOCAL_KEY = "utne-quiz-results-v1";
-const isConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+const isConfigured = Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
 
 function localResults() {
   try { return JSON.parse(localStorage.getItem(LOCAL_KEY)) || []; }
@@ -9,7 +9,7 @@ function localResults() {
 }
 
 function headers() {
-  return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json" };
+  return { apikey: SUPABASE_PUBLISHABLE_KEY, "Content-Type": "application/json" };
 }
 
 function clean(result) {

@@ -22,6 +22,19 @@ for (let seed = 1; seed <= 30; seed += 1) {
 }
 assert.equal(answerPositions.size, 4, "correct answers should appear in every position");
 
+const balancedQuiz = {
+  questionCount: 10,
+  questions: Array.from({ length: 10 }, (_, index) => ({
+    question: `Q${index}`,
+    correct: `R${index}`,
+    wrong: [`F${index}-1`, `F${index}-2`, `F${index}-3`]
+  }))
+};
+const balancedRound = createRound(balancedQuiz);
+const positionCounts = [0, 0, 0, 0];
+balancedRound.forEach((item) => { positionCounts[item.answers.indexOf(item.correct)] += 1; });
+assert.ok(Math.max(...positionCounts) - Math.min(...positionCounts) <= 1, "A–D should be balanced per round");
+
 assert.equal(streakBonus(1), 0);
 assert.equal(streakBonus(2), 50);
 assert.equal(streakBonus(5), 200);
