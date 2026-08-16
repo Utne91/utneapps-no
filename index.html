@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#12352f">
+  <meta name="description" content="Utne Quiz – korte quizer for læring, repetisjon og nye rekorder.">
+  <title>Utne Quiz</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <button class="brand" id="home-button" type="button" aria-label="Gå til forsiden">
+      <span class="brand-mark">U</span><span>Utne Quiz</span>
+    </button>
+    <button class="header-action" id="scores-button" type="button">Highscore</button>
+  </header>
+
+  <main id="app" class="app-shell" aria-live="polite"></main>
+
+  <footer>
+    <span>Utne Quiz</span><span aria-hidden="true">•</span><span>Lær litt. Slå rekorden.</span>
+  </footer>
+
+  <noscript>Du må slå på JavaScript for å bruke quizen.</noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
