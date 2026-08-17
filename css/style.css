@@ -201,9 +201,19 @@ input:focus, textarea:focus { border-color: var(--mint-dark); outline: 3px solid
 .student-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 72px; padding: 12px 16px; border-bottom: 1px solid #e7ece9; }
 .student-row:last-child { border-bottom: 0; }
 .student-row div { display: flex; flex-direction: column; gap: 3px; }
+.student-row .student-actions { flex-direction: row; align-items: center; gap: 8px; }
+.student-actions .primary, .student-actions .secondary { min-height: 42px; padding: 9px 13px; }
 .student-row span { color: var(--muted); font-size: .85rem; }
 .student-row .new-pin { margin-top: 5px; color: var(--red); }
 .form-message.success { color: #18704f; }
+.student-results-panel { scroll-margin-top: 20px; margin-top: 28px; padding: 28px; border-radius: 24px; background: white; box-shadow: var(--shadow); }
+.student-results-panel h3 { font-size: 2rem; }
+.teacher-stats { grid-template-columns: repeat(4, 1fr); }
+.history-scroll { margin-top: 22px; overflow-x: auto; border: 1px solid #e4e9e6; border-radius: 16px; }
+.result-history { width: 100%; min-width: 650px; border-collapse: collapse; }
+.result-history th, .result-history td { padding: 13px 14px; border-bottom: 1px solid #e7ece9; text-align: left; white-space: nowrap; }
+.result-history th { color: var(--muted); background: var(--cream); font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; }
+.result-history tr:last-child td { border-bottom: 0; }
 
 footer { min-height: 68px; display: flex; justify-content: center; align-items: center; gap: 9px; color: var(--muted); font-size: .85rem; }
 
@@ -230,6 +240,9 @@ footer { min-height: 68px; display: flex; justify-content: center; align-items: 
   .admin-grid { grid-template-columns: 1fr; }
   .credentials, .student-list-section { padding: 18px; }
   .student-row { align-items: flex-start; }
+  .student-row .student-actions { flex-direction: column; align-items: stretch; }
+  .teacher-stats { grid-template-columns: 1fr 1fr; }
+  .student-results-panel { padding: 20px; }
 }
 
 @media print {

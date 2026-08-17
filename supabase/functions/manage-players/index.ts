@@ -64,6 +64,20 @@ Deno.serve(async (request) => {
       return Response.json({ students: data }, { headers });
     }
 
+    if (body.action === "student_results") {
+      const id = String(body.id || "");
+      const { data: profile } = await admin.from("profiles").select("id,username").eq("id", id).maybeSingle();
+      if (!profile) return Response.json({ error: "Elevkontoen finnes ikke." }, { status: 404, headers });
+      const { data: results, error } = await admin
+        .from("results")
+        .select("quiz_id,score,correct_answers,total_questions,best_streak,played_at")
+        .eq("user_id", id)
+        .order("played_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return Response.json({ student: profile, results }, { headers });
+    }
+
     if (body.action === "create") {
       const usernames = Array.isArray(body.usernames) ? body.usernames.map(normalize).filter(Boolean) : [];
       if (!usernames.length || usernames.length > 40) {

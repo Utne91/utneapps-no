@@ -41,3 +41,19 @@ export async function createStudents(usernames) {
 export async function resetStudentPin(id) {
   return managePlayers({ action: "reset_pin", id });
 }
+
+export async function getStudentResults(id) {
+  return managePlayers({ action: "student_results", id });
+}
+
+export function summarizeStudentResults(results) {
+  const plays = results.length;
+  const correct = results.reduce((sum, row) => sum + Number(row.correct_answers), 0);
+  const total = results.reduce((sum, row) => sum + Number(row.total_questions), 0);
+  return {
+    plays,
+    accuracy: total ? Math.round((correct / total) * 100) : 0,
+    bestScore: plays ? Math.max(...results.map((row) => Number(row.score))) : 0,
+    lastPlayed: plays ? results[0].played_at : null
+  };
+}

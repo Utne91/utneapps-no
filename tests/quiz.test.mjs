@@ -3,6 +3,7 @@ import { shuffle, createRound } from "../js/quiz-engine.js";
 import { answerPoints, perfectRoundBonus, streakBonus } from "../js/scoring.js";
 import { createBonusState, resolveCorrectBonus, registerMiss } from "../js/bonuses.js";
 import { normalizeUsername, isValidUsername, isValidPin } from "../js/auth.js";
+import { summarizeStudentResults } from "../js/admin.js";
 
 const sequence = [1, 2, 3, 4];
 assert.deepEqual(shuffle(sequence, () => 0), [2, 3, 4, 1]);
@@ -57,5 +58,11 @@ assert.equal(isValidUsername("Ulovlig@navn"), false);
 assert.equal(isValidPin("123456"), true);
 assert.equal(isValidPin("12345"), false);
 assert.equal(isValidPin("abcdef"), false);
+
+assert.deepEqual(summarizeStudentResults([
+  { correct_answers: 7, total_questions: 10, score: 4200, played_at: "2026-08-17T12:00:00Z" },
+  { correct_answers: 9, total_questions: 10, score: 6100, played_at: "2026-08-16T12:00:00Z" }
+]), { plays: 2, accuracy: 80, bestScore: 6100, lastPlayed: "2026-08-17T12:00:00Z" });
+assert.deepEqual(summarizeStudentResults([]), { plays: 0, accuracy: 0, bestScore: 0, lastPlayed: null });
 
 console.log("Alle tester bestått.");

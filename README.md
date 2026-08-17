@@ -12,7 +12,7 @@ Resultater lagres i Supabase. Kjør `node tests/quiz.test.mjs` for å teste quiz
 
 Prosjektet er koblet til Supabase-prosjektet `utneappsquiz`. Databasestrukturen ligger i `supabase/schema.sql`.
 
-Læreren oppretter beskyttede elevprofiler fra lærersiden. Systemet lager en sekssifret PIN til hver elev, og læreren kan nullstille glemte PIN-koder. Fri elevregistrering er slått av, slik at elever ikke kan ta hverandres navn. Det samles ikke inn elev-e-post, skole eller klasse. Supabase Auth bruker en intern, avledet konto-ID som ikke vises til eleven, mens databasen knytter hvert nytt resultat til riktig bruker med RLS-regler.
+Læreren oppretter beskyttede elevprofiler fra lærersiden. Systemet lager en sekssifret PIN til hver elev, og læreren kan nullstille glemte PIN-koder. Fri elevregistrering er slått av, slik at elever ikke kan ta hverandres navn. Læreren kan velge en elev og se antall runder, samlet treffprosent, beste poengsum, siste aktivitet og historikken for hver runde. Det samles ikke inn elev-e-post, skole eller klasse. Supabase Auth bruker en intern, avledet konto-ID som ikke vises til eleven, mens databasen knytter hvert nytt resultat til riktig bruker med RLS-regler.
 
 E-postbekreftelse må være slått av for e-postleverandøren i Supabase Auth, siden de interne konto-ID-ene ikke er ekte e-postadresser.
 

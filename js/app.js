@@ -4,7 +4,7 @@ import { answerPoints, perfectRoundBonus } from "./scoring.js";
 import { createBonusState, resolveCorrectBonus, registerMiss, consumeMultiplier } from "./bonuses.js";
 import { saveResult, getLeaderboard, getPlayerStats, getProfile, isConfigured } from "./database.js";
 import { restoreSession, login, loginTeacher, logout, changePassword, getCurrentUser } from "./auth.js";
-import { isTeacher, listStudents, createStudents, resetStudentPin } from "./admin.js";
+import { isTeacher, listStudents, createStudents, resetStudentPin, getStudentResults, summarizeStudentResults } from "./admin.js";
 
 const app = document.querySelector("#app");
 const scoresButton = document.querySelector("#scores-button");
@@ -94,7 +94,7 @@ function credentialRows(accounts) {
 
 async function renderTeacherAdmin(created = []) {
   if (!state.teacher) return renderTeacherLogin();
-  setView(`<section class="teacher-admin"><div class="section-head"><div><p class="eyebrow">Lærerside</p><h2>Elevkontoer</h2><p>Lim inn ett elevnavn per linje. Unike PIN-koder lages automatisk.</p></div></div><section class="admin-grid"><div class="panel admin-panel"><h3>Opprett elever</h3><form id="create-students-form"><label for="student-names">Elevnavn eller elevkoder</label><textarea id="student-names" rows="8" maxlength="1500" placeholder="Per 7B\nSara 7B\nElev 14" required></textarea><p class="hint">Bruk gjerne elevkoder dersom navn ikke skal lagres.</p><div class="form-message" id="create-message" role="status"></div><button class="primary full-width" id="create-students" type="submit">Opprett kontoer</button></form></div><div class="panel admin-panel"><h3>Bytt lærerpassord</h3><form id="password-form"><label for="new-teacher-password">Nytt passord</label><input id="new-teacher-password" type="password" minlength="12" autocomplete="new-password" required><p class="hint">Minst 12 tegn. Bruk et passord bare du kjenner.</p><div class="form-message" id="password-message" role="status"></div><button class="secondary full-width" type="submit">Lagre nytt passord</button></form></div></section>${created.length ? `<section class="credentials print-area"><div class="section-head"><div><p class="eyebrow">Nye kontoer</p><h3>Skriv ut eller del ut</h3></div><button class="secondary no-print" id="print-accounts" type="button">Skriv ut</button></div><table><thead><tr><th>Brukernavn</th><th>PIN</th></tr></thead><tbody>${credentialRows(created)}</tbody></table><p class="credential-warning">PIN-kodene vises bare nå. Skriv ut listen før du går videre.</p></section>` : ""}<section class="student-list-section"><div class="section-head"><div><p class="eyebrow">Administrer</p><h3>Opprettede elever</h3></div></div><div id="student-list" class="student-list"><div class="empty">Henter elever …</div></div></section></section>`);
+  setView(`<section class="teacher-admin"><div class="section-head"><div><p class="eyebrow">Lærerside</p><h2>Elevkontoer</h2><p>Lim inn ett elevnavn per linje. Unike PIN-koder lages automatisk.</p></div></div><section class="admin-grid"><div class="panel admin-panel"><h3>Opprett elever</h3><form id="create-students-form"><label for="student-names">Elevnavn eller elevkoder</label><textarea id="student-names" rows="8" maxlength="1500" placeholder="Per 7B\nSara 7B\nElev 14" required></textarea><p class="hint">Bruk gjerne elevkoder dersom navn ikke skal lagres.</p><div class="form-message" id="create-message" role="status"></div><button class="primary full-width" id="create-students" type="submit">Opprett kontoer</button></form></div><div class="panel admin-panel"><h3>Bytt lærerpassord</h3><form id="password-form"><label for="new-teacher-password">Nytt passord</label><input id="new-teacher-password" type="password" minlength="12" autocomplete="new-password" required><p class="hint">Minst 12 tegn. Bruk et passord bare du kjenner.</p><div class="form-message" id="password-message" role="status"></div><button class="secondary full-width" type="submit">Lagre nytt passord</button></form></div></section>${created.length ? `<section class="credentials print-area"><div class="section-head"><div><p class="eyebrow">Nye kontoer</p><h3>Skriv ut eller del ut</h3></div><button class="secondary no-print" id="print-accounts" type="button">Skriv ut</button></div><table><thead><tr><th>Brukernavn</th><th>PIN</th></tr></thead><tbody>${credentialRows(created)}</tbody></table><p class="credential-warning">PIN-kodene vises bare nå. Skriv ut listen før du går videre.</p></section>` : ""}<section class="student-list-section"><div class="section-head"><div><p class="eyebrow">Administrer</p><h3>Opprettede elever</h3></div></div><div id="student-list" class="student-list"><div class="empty">Henter elever …</div></div></section><section id="student-results-panel" class="student-results-panel" hidden></section></section>`);
   app.querySelector("#create-students-form").addEventListener("submit", handleCreateStudents);
   app.querySelector("#password-form").addEventListener("submit", handlePasswordChange);
   app.querySelector("#print-accounts")?.addEventListener("click", () => window.print());
@@ -139,9 +139,35 @@ async function refreshStudentList() {
   const container = app.querySelector("#student-list");
   try {
     const students = await listStudents();
-    container.innerHTML = students.length ? students.map((student) => `<div class="student-row"><div><strong>${escapeHtml(student.username)}</strong><span>Opprettet ${new Date(student.created_at).toLocaleDateString("nb-NO")}</span></div><button class="secondary reset-pin" data-id="${student.id}" data-name="${escapeHtml(student.username)}" type="button">Ny PIN</button></div>`).join("") : '<div class="empty">Ingen elevkontoer ennå.</div>';
+    container.innerHTML = students.length ? students.map((student) => `<div class="student-row"><div><strong>${escapeHtml(student.username)}</strong><span>Opprettet ${new Date(student.created_at).toLocaleDateString("nb-NO")}</span></div><div class="student-actions"><button class="primary view-results" data-id="${student.id}" type="button">Se resultater</button><button class="secondary reset-pin" data-id="${student.id}" type="button">Ny PIN</button></div></div>`).join("") : '<div class="empty">Ingen elevkontoer ennå.</div>';
+    container.querySelectorAll(".view-results").forEach((button) => button.addEventListener("click", () => handleViewResults(button)));
     container.querySelectorAll(".reset-pin").forEach((button) => button.addEventListener("click", () => handleResetPin(button)));
   } catch { container.innerHTML = '<div class="empty">Kunne ikke hente elevlisten.</div>'; }
+}
+
+function quizTitle(id) {
+  return quizzes.find((quiz) => quiz.id === id)?.title || id;
+}
+
+async function handleViewResults(button) {
+  const panel = app.querySelector("#student-results-panel");
+  button.disabled = true;
+  button.textContent = "Henter …";
+  panel.hidden = false;
+  panel.innerHTML = '<div class="empty">Henter resultater …</div>';
+  try {
+    const { student, results } = await getStudentResults(button.dataset.id);
+    const summary = summarizeStudentResults(results);
+    const rows = results.map((row) => `<tr><td>${new Date(row.played_at).toLocaleString("nb-NO", { dateStyle: "short", timeStyle: "short" })}</td><td>${escapeHtml(quizTitle(row.quiz_id))}</td><td>${row.correct_answers}/${row.total_questions} (${Math.round(row.correct_answers / row.total_questions * 100)} %)</td><td>${Number(row.score).toLocaleString("nb-NO")}</td><td>${row.best_streak}</td></tr>`).join("");
+    panel.innerHTML = `<button class="back" id="close-results" type="button">← Lukk resultatene</button><p class="eyebrow">Elevresultater</p><h3>${escapeHtml(student.username)}</h3><div class="result-stats teacher-stats"><div class="result-stat"><strong>${summary.plays}</strong><span>runder spilt</span></div><div class="result-stat"><strong>${summary.accuracy} %</strong><span>riktig totalt</span></div><div class="result-stat"><strong>${summary.bestScore.toLocaleString("nb-NO")}</strong><span>beste poengsum</span></div><div class="result-stat"><strong>${summary.lastPlayed ? new Date(summary.lastPlayed).toLocaleDateString("nb-NO") : "–"}</strong><span>sist spilt</span></div></div>${rows ? `<div class="history-scroll"><table class="result-history"><thead><tr><th>Tidspunkt</th><th>Quiz</th><th>Riktig</th><th>Poeng</th><th>Streak</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="empty">Eleven har ikke fullført noen quiz ennå.</div>'}`;
+    panel.querySelector("#close-results").addEventListener("click", () => { panel.hidden = true; panel.innerHTML = ""; });
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    panel.innerHTML = `<div class="empty">${escapeHtml(error.message || "Kunne ikke hente resultatene.")}</div>`;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Se resultater";
+  }
 }
 
 async function handleResetPin(button) {
