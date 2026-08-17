@@ -16,10 +16,13 @@
     <button class="brand" id="home-button" type="button" aria-label="Gå til forsiden">
       <span class="brand-mark">U</span><span>Utne Quiz</span>
     </button>
-    <button class="header-action" id="scores-button" type="button">Highscore</button>
+    <div class="header-actions">
+      <button class="header-action" id="scores-button" type="button" hidden>Highscore</button>
+      <button class="header-action account-action" id="account-button" type="button" hidden></button>
+    </div>
   </header>
 
-  <main id="app" class="app-shell" aria-live="polite"></main>
+  <main id="app" class="app-shell" aria-live="polite"><div class="empty">Starter Utne Quiz …</div></main>
 
   <footer>
     <span>Utne Quiz</span><span aria-hidden="true">•</span><span>Lær litt. Slå rekorden.</span>

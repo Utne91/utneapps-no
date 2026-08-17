@@ -2,20 +2,167 @@ import { subjects, quizzes } from "../data/subjects.js";
 import { createRound } from "./quiz-engine.js";
 import { answerPoints, perfectRoundBonus } from "./scoring.js";
 import { createBonusState, resolveCorrectBonus, registerMiss, consumeMultiplier } from "./bonuses.js";
-import { saveResult, getLeaderboard, getPlayerStats, isConfigured } from "./database.js";
+import { saveResult, getLeaderboard, getPlayerStats, getProfile, isConfigured } from "./database.js";
+import { restoreSession, login, loginTeacher, logout, changePassword, getCurrentUser } from "./auth.js";
+import { isTeacher, listStudents, createStudents, resetStudentPin } from "./admin.js";
 
 const app = document.querySelector("#app");
-const state = { subject: null, quizMeta: quizzes[0], quiz: null, player: "", round: [], index: 0, score: 0, correct: 0, streak: 0, bestStreak: 0, answered: false, bonuses: createBonusState() };
+const scoresButton = document.querySelector("#scores-button");
+const accountButton = document.querySelector("#account-button");
+const state = { profile: null, teacher: false, subject: null, quizMeta: quizzes[0], quiz: null, player: "", round: [], index: 0, score: 0, correct: 0, streak: 0, bestStreak: 0, answered: false, bonuses: createBonusState() };
 const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
 
 function setView(html) { app.innerHTML = html; window.scrollTo({ top: 0, behavior: "smooth" }); }
 function quizForSubject(id) { return quizzes.filter((quiz) => quiz.subjectId === id); }
 
+function syncHeader() {
+  const loggedIn = Boolean(state.profile || state.teacher);
+  scoresButton.hidden = !state.profile;
+  accountButton.hidden = !loggedIn;
+  accountButton.textContent = state.teacher ? "Lærer · Logg ut" : state.profile ? `${state.profile.username} · Logg ut` : "";
+}
+
+function renderAuth(message = "") {
+  state.profile = null;
+  state.teacher = false;
+  syncHeader();
+  setView(`<section class="auth-layout"><section class="auth-intro"><p class="eyebrow">Din egen quizprofil</p><h1>Spill trygt.<br><span class="accent">Behold rekorden.</span></h1><p class="lead">Læreren oppretter kontoen din. Resultatene knyttes til din bruker, så ingen andre kan registrere poeng under navnet ditt.</p><div class="trust-note"><strong>🔒 Ingen e-post nødvendig</strong><span>Du får brukernavn og en sekssifret PIN av læreren.</span></div></section><section class="panel auth-panel"><p class="eyebrow">Velkommen tilbake</p><h2>Elevinnlogging</h2><form id="auth-form" class="auth-form"><label for="username">Brukernavn</label><input id="username" maxlength="24" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="Brukernavnet fra læreren"><label for="pin">PIN-kode</label><input id="pin" class="pin-input" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="current-password" required placeholder="6 tall"><p class="hint">Har du glemt PIN-koden? Be læreren lage en ny.</p><div class="form-message ${message ? "error" : ""}" id="form-message" role="status">${escapeHtml(message)}</div><button class="primary full-width" id="auth-submit" type="submit">Logg inn</button></form><button class="teacher-link" id="teacher-login" type="button">Lærerinnlogging</button></section></section>`);
+  app.querySelector("#pin").addEventListener("input", (event) => { event.target.value = event.target.value.replace(/\D/g, "").slice(0, 6); });
+  app.querySelector("#auth-form").addEventListener("submit", handleAuth);
+  app.querySelector("#teacher-login").addEventListener("click", () => renderTeacherLogin());
+}
+
+async function handleAuth(event) {
+  event.preventDefault();
+  const username = app.querySelector("#username").value.trim();
+  const pin = app.querySelector("#pin").value;
+  const message = app.querySelector("#form-message");
+  const submit = app.querySelector("#auth-submit");
+  submit.disabled = true;
+  submit.textContent = "Logger inn …";
+  message.textContent = "";
+  try {
+    await login(username, pin);
+    state.profile = await getProfile();
+    if (!state.profile) throw new Error("Denne kontoen er ikke opprettet av læreren.");
+    state.player = state.profile.username;
+    syncHeader();
+    renderHome();
+  } catch (error) {
+    message.textContent = error.message || "Noe gikk galt. Prøv igjen.";
+    message.className = "form-message error";
+    submit.disabled = false;
+    submit.textContent = "Logg inn";
+  }
+}
+
+function renderTeacherLogin(message = "") {
+  state.profile = null;
+  state.teacher = false;
+  syncHeader();
+  setView(`<button class="back" id="back-to-student" type="button">← Elevinnlogging</button><section class="panel auth-panel teacher-login-panel"><p class="eyebrow">For læreren</p><h2>Lærerinnlogging</h2><p class="topic-summary">Her oppretter du elevkontoer og lager nye PIN-koder.</p><form id="teacher-auth-form" class="auth-form"><label for="teacher-username">Lærerbrukernavn</label><input id="teacher-username" maxlength="24" autocomplete="username" autocapitalize="none" required><label for="teacher-password">Passord</label><input id="teacher-password" type="password" autocomplete="current-password" minlength="10" required><div class="form-message ${message ? "error" : ""}" id="form-message" role="status">${escapeHtml(message)}</div><button class="primary full-width" id="teacher-submit" type="submit">Logg inn som lærer</button></form></section>`);
+  app.querySelector("#back-to-student").addEventListener("click", () => renderAuth());
+  app.querySelector("#teacher-auth-form").addEventListener("submit", handleTeacherAuth);
+}
+
+async function handleTeacherAuth(event) {
+  event.preventDefault();
+  const username = app.querySelector("#teacher-username").value.trim();
+  const password = app.querySelector("#teacher-password").value;
+  const submit = app.querySelector("#teacher-submit");
+  const message = app.querySelector("#form-message");
+  submit.disabled = true;
+  submit.textContent = "Logger inn …";
+  try {
+    await loginTeacher(username, password);
+    if (!await isTeacher()) throw new Error("Denne kontoen har ikke lærertilgang.");
+    state.teacher = true;
+    syncHeader();
+    await renderTeacherAdmin();
+  } catch (error) {
+    await logout();
+    message.textContent = error.message || "Kunne ikke logge inn som lærer.";
+    message.className = "form-message error";
+    submit.disabled = false;
+    submit.textContent = "Logg inn som lærer";
+  }
+}
+
+function credentialRows(accounts) {
+  return accounts.map((account) => `<tr><td>${escapeHtml(account.username)}</td><td class="pin-cell">${escapeHtml(account.pin)}</td></tr>`).join("");
+}
+
+async function renderTeacherAdmin(created = []) {
+  if (!state.teacher) return renderTeacherLogin();
+  setView(`<section class="teacher-admin"><div class="section-head"><div><p class="eyebrow">Lærerside</p><h2>Elevkontoer</h2><p>Lim inn ett elevnavn per linje. Unike PIN-koder lages automatisk.</p></div></div><section class="admin-grid"><div class="panel admin-panel"><h3>Opprett elever</h3><form id="create-students-form"><label for="student-names">Elevnavn eller elevkoder</label><textarea id="student-names" rows="8" maxlength="1500" placeholder="Per 7B\nSara 7B\nElev 14" required></textarea><p class="hint">Bruk gjerne elevkoder dersom navn ikke skal lagres.</p><div class="form-message" id="create-message" role="status"></div><button class="primary full-width" id="create-students" type="submit">Opprett kontoer</button></form></div><div class="panel admin-panel"><h3>Bytt lærerpassord</h3><form id="password-form"><label for="new-teacher-password">Nytt passord</label><input id="new-teacher-password" type="password" minlength="12" autocomplete="new-password" required><p class="hint">Minst 12 tegn. Bruk et passord bare du kjenner.</p><div class="form-message" id="password-message" role="status"></div><button class="secondary full-width" type="submit">Lagre nytt passord</button></form></div></section>${created.length ? `<section class="credentials print-area"><div class="section-head"><div><p class="eyebrow">Nye kontoer</p><h3>Skriv ut eller del ut</h3></div><button class="secondary no-print" id="print-accounts" type="button">Skriv ut</button></div><table><thead><tr><th>Brukernavn</th><th>PIN</th></tr></thead><tbody>${credentialRows(created)}</tbody></table><p class="credential-warning">PIN-kodene vises bare nå. Skriv ut listen før du går videre.</p></section>` : ""}<section class="student-list-section"><div class="section-head"><div><p class="eyebrow">Administrer</p><h3>Opprettede elever</h3></div></div><div id="student-list" class="student-list"><div class="empty">Henter elever …</div></div></section></section>`);
+  app.querySelector("#create-students-form").addEventListener("submit", handleCreateStudents);
+  app.querySelector("#password-form").addEventListener("submit", handlePasswordChange);
+  app.querySelector("#print-accounts")?.addEventListener("click", () => window.print());
+  await refreshStudentList();
+}
+
+async function handleCreateStudents(event) {
+  event.preventDefault();
+  const names = app.querySelector("#student-names").value.split("\n").map((name) => name.trim()).filter(Boolean);
+  const button = app.querySelector("#create-students");
+  const message = app.querySelector("#create-message");
+  if (!names.length) return;
+  button.disabled = true;
+  button.textContent = "Oppretter …";
+  try {
+    const accounts = await createStudents(names);
+    await renderTeacherAdmin(accounts);
+  } catch (error) {
+    message.textContent = error.message;
+    message.className = "form-message error";
+    button.disabled = false;
+    button.textContent = "Opprett kontoer";
+  }
+}
+
+async function handlePasswordChange(event) {
+  event.preventDefault();
+  const password = app.querySelector("#new-teacher-password").value;
+  const message = app.querySelector("#password-message");
+  try {
+    await changePassword(password);
+    event.target.reset();
+    message.textContent = "Passordet er endret.";
+    message.className = "form-message success";
+  } catch (error) {
+    message.textContent = error.message;
+    message.className = "form-message error";
+  }
+}
+
+async function refreshStudentList() {
+  const container = app.querySelector("#student-list");
+  try {
+    const students = await listStudents();
+    container.innerHTML = students.length ? students.map((student) => `<div class="student-row"><div><strong>${escapeHtml(student.username)}</strong><span>Opprettet ${new Date(student.created_at).toLocaleDateString("nb-NO")}</span></div><button class="secondary reset-pin" data-id="${student.id}" data-name="${escapeHtml(student.username)}" type="button">Ny PIN</button></div>`).join("") : '<div class="empty">Ingen elevkontoer ennå.</div>';
+    container.querySelectorAll(".reset-pin").forEach((button) => button.addEventListener("click", () => handleResetPin(button)));
+  } catch { container.innerHTML = '<div class="empty">Kunne ikke hente elevlisten.</div>'; }
+}
+
+async function handleResetPin(button) {
+  button.disabled = true;
+  button.textContent = "Lager …";
+  try {
+    const result = await resetStudentPin(button.dataset.id);
+    button.closest(".student-row").querySelector("div").insertAdjacentHTML("beforeend", `<span class="new-pin">Ny PIN: <b>${escapeHtml(result.pin)}</b> – skriv den ned nå</span>`);
+    button.textContent = "Ny PIN laget";
+  } catch {
+    button.disabled = false;
+    button.textContent = "Prøv igjen";
+  }
+}
+
 function renderHome() {
+  if (!state.profile) return renderAuth();
   state.subject = null;
   setView(`
     <section class="hero">
-      <p class="eyebrow">Klar for en runde?</p>
+      <p class="eyebrow">Hei, ${escapeHtml(state.profile.username)}! Klar for en runde?</p>
       <h1>Lær litt.<br><span class="accent">Slå rekorden.</span></h1>
       <p class="lead">Velg et fag, test deg selv og se om du klarer å slå din egen beste poengsum.</p>
     </section>
@@ -29,6 +176,7 @@ function renderHome() {
 }
 
 function renderTopics(subjectId) {
+  if (!state.profile) return renderAuth();
   state.subject = subjects.find((item) => item.id === subjectId);
   const list = quizForSubject(subjectId);
   setView(`<button class="back" type="button" id="back">← Alle fag</button><div class="section-head"><div><p class="eyebrow">${state.subject.icon} Fag</p><h2>${state.subject.name}</h2><p>Velg tema og start en ny runde.</p></div></div><div class="grid">${list.map((quiz) => `<button class="card" type="button" data-quiz="${quiz.id}"><span class="card-icon">🧠</span><h3>${quiz.title}</h3><p>${quiz.description}</p><span class="tag">${quiz.questionCount} spørsmål</span></button>`).join("")}</div>`);
@@ -37,16 +185,12 @@ function renderTopics(subjectId) {
 }
 
 function renderStart(meta) {
+  if (!state.profile) return renderAuth();
   state.quizMeta = meta;
-  const remembered = localStorage.getItem("utne-quiz-player") || "";
-  setView(`<button class="back" type="button" id="back">← Til temaene</button><section class="panel"><p class="eyebrow">${state.subject?.name || "Samfunnsfag"}</p><h2>${meta.title}</h2><p class="topic-summary">${meta.questionCount} tilfeldige spørsmål. Svarene stokkes hver gang.</p><form id="player-form"><label for="player-name">Navn eller kallenavn</label><input id="player-name" maxlength="24" autocomplete="nickname" value="${escapeHtml(remembered)}" required><p class="hint">Bruk gjerne bare fornavn eller kallenavn.</p><button class="primary" type="submit">Start quizen →</button></form></section>`);
+  setView(`<button class="back" type="button" id="back">← Til temaene</button><section class="panel"><p class="eyebrow">${state.subject?.name || "Samfunnsfag"}</p><h2>${meta.title}</h2><p class="topic-summary">${meta.questionCount} tilfeldige spørsmål. Svarene stokkes hver gang.</p><div class="signed-player"><span>Spiller som</span><strong>${escapeHtml(state.profile.username)}</strong><span class="verified-badge">✓ Beskyttet profil</span></div><button class="primary full-width" id="start-quiz" type="button">Start quizen →</button></section>`);
   app.querySelector("#back").addEventListener("click", () => renderTopics(meta.subjectId));
-  app.querySelector("#player-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const name = app.querySelector("#player-name").value.trim();
-    if (!name) return;
-    state.player = name.slice(0, 24);
-    localStorage.setItem("utne-quiz-player", state.player);
+  app.querySelector("#start-quiz").addEventListener("click", async () => {
+    state.player = state.profile.username;
     const module = await import(meta.dataPath);
     state.quiz = module.default;
     startRound();
@@ -105,7 +249,7 @@ async function finishRound() {
   let leaderboard;
   try {
     await saveResult(result);
-    [stats, leaderboard] = await Promise.all([getPlayerStats(state.quiz.id, state.player), getLeaderboard(state.quiz.id, 100)]);
+    [stats, leaderboard] = await Promise.all([getPlayerStats(state.quiz.id, getCurrentUser()?.id), getLeaderboard(state.quiz.id, 100)]);
   } catch {
     stats = { plays: 1, bestScore: state.score, bestStreak: state.bestStreak };
     leaderboard = [result];
@@ -120,6 +264,7 @@ async function finishRound() {
 }
 
 async function renderLeaderboard(quizId = state.quizMeta.id) {
+  if (!state.profile) return renderAuth();
   setView(`<section class="leaderboard"><button class="back" id="back" type="button">← Tilbake</button><p class="eyebrow">Highscore</p><h2>${state.quizMeta.title}</h2><div class="score-table"><div class="empty">Henter resultater …</div></div></section>`);
   app.querySelector("#back").addEventListener("click", state.subject ? () => renderTopics(state.subject.id) : renderHome);
   try {
@@ -128,8 +273,27 @@ async function renderLeaderboard(quizId = state.quizMeta.id) {
   } catch { app.querySelector(".score-table").innerHTML = `<div class="empty">Highscore kunne ikke lastes akkurat nå.</div>`; }
 }
 
-document.querySelector("#home-button").addEventListener("click", renderHome);
-document.querySelector("#scores-button").addEventListener("click", () => renderLeaderboard());
-renderHome();
+document.querySelector("#home-button").addEventListener("click", () => state.teacher ? renderTeacherAdmin() : state.profile ? renderHome() : renderAuth());
+scoresButton.addEventListener("click", () => renderLeaderboard());
+accountButton.addEventListener("click", async () => { await logout(); state.profile = null; state.teacher = false; state.player = ""; renderAuth("Du er logget ut."); });
+
+async function initialize() {
+  if (!isConfigured) return renderAuth("Innloggingen er ikke konfigurert ennå.");
+  try {
+    const session = await restoreSession();
+    state.teacher = session ? await isTeacher() : false;
+    state.profile = session && !state.teacher ? await getProfile() : null;
+    if (state.teacher) {
+      syncHeader();
+      await renderTeacherAdmin();
+    } else if (state.profile) {
+      state.player = state.profile.username;
+      syncHeader();
+      renderHome();
+    } else renderAuth();
+  } catch { renderAuth(); }
+}
+
+initialize();
 
 if (!isConfigured) console.info("Utne Quiz bruker lokal resultatlagring til Supabase er konfigurert.");

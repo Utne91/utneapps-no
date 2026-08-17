@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { shuffle, createRound } from "../js/quiz-engine.js";
 import { answerPoints, perfectRoundBonus, streakBonus } from "../js/scoring.js";
 import { createBonusState, resolveCorrectBonus, registerMiss } from "../js/bonuses.js";
+import { normalizeUsername, isValidUsername, isValidPin } from "../js/auth.js";
 
 const sequence = [1, 2, 3, 4];
 assert.deepEqual(shuffle(sequence, () => 0), [2, 3, 4, 1]);
@@ -48,5 +49,13 @@ resolveCorrectBonus(bonus, 1, () => 1);
 resolveCorrectBonus(bonus, 2, () => 1);
 assert.equal(resolveCorrectBonus(bonus, 3, () => 1).extraPoints, 150);
 assert.equal(resolveCorrectBonus(bonus, 5, () => 1).extraPoints, 100);
+
+assert.equal(normalizeUsername("  Quiz   Mester  "), "quiz mester");
+assert.equal(isValidUsername("Øivind_91"), true);
+assert.equal(isValidUsername("A"), false);
+assert.equal(isValidUsername("Ulovlig@navn"), false);
+assert.equal(isValidPin("123456"), true);
+assert.equal(isValidPin("12345"), false);
+assert.equal(isValidPin("abcdef"), false);
 
 console.log("Alle tester bestått.");
