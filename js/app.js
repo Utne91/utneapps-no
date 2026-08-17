@@ -4,7 +4,7 @@ import { answerPoints, perfectRoundBonus } from "./scoring.js";
 import { createBonusState, resolveCorrectBonus, registerMiss, consumeMultiplier } from "./bonuses.js";
 import { saveResult, getLeaderboard, getPlayerStats, getProfile, isConfigured } from "./database.js";
 import { restoreSession, login, loginTeacher, logout, changePassword, getCurrentUser } from "./auth.js";
-import { isTeacher, listStudents, createStudents, resetStudentPin, getStudentResults, summarizeStudentResults } from "./admin.js";
+import { isTeacher, listStudents, createStudents, resetStudentPin, getStudentResults, summarizeStudentResults } from "./admin.js?v=2";
 
 const app = document.querySelector("#app");
 const scoresButton = document.querySelector("#scores-button");
