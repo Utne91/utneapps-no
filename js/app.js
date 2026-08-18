@@ -4,12 +4,12 @@ import { answerPoints, perfectRoundBonus } from "./scoring.js";
 import { createBonusState, resolveCorrectBonus, registerMiss, consumeMultiplier } from "./bonuses.js";
 import { saveResult, getLeaderboard, getPlayerStats, getProfile, isConfigured } from "./database.js";
 import { restoreSession, login, loginTeacher, logout, changePassword, getCurrentUser } from "./auth.js";
-import { isTeacher, listStudents, createStudents, resetStudentPin, deleteStudent, getStudentResults, summarizeStudentResults, listGroups, createGroup, setGroupMembers, deleteGroup } from "./admin.js?v=4";
+import { isTeacher, listStudents, createStudents, resetStudentPin, deleteStudent, getStudentResults, summarizeStudentResults, listGroups, getGroupResults, summarizeGroupResults, createGroup, setGroupMembers, deleteGroup } from "./admin.js?v=5";
 
 const app = document.querySelector("#app");
 const scoresButton = document.querySelector("#scores-button");
 const accountButton = document.querySelector("#account-button");
-const state = { profile: null, teacher: false, subject: null, quizMeta: quizzes[0], quiz: null, player: "", round: [], index: 0, score: 0, correct: 0, streak: 0, bestStreak: 0, answered: false, bonuses: createBonusState(), students: [], groups: [] };
+const state = { profile: null, teacher: false, teacherPreview: false, subject: null, quizMeta: quizzes[0], quiz: null, player: "", round: [], index: 0, score: 0, correct: 0, streak: 0, bestStreak: 0, answered: false, bonuses: createBonusState(), students: [], groups: [], groupReport: null };
 const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
 
 function setView(html) { app.innerHTML = html; window.scrollTo({ top: 0, behavior: "smooth" }); }
@@ -94,8 +94,13 @@ function credentialRows(accounts) {
 
 async function renderTeacherAdmin(created = []) {
   if (!state.teacher) return renderTeacherLogin();
+  state.teacherPreview = false;
   setView(`<section class="teacher-admin">
     <div class="section-head"><div><p class="eyebrow">Lærerside</p><h2>Elever og grupper</h2><p>Opprett elevkontoer og organiser dem i faggrupper.</p></div></div>
+    <section class="teacher-quiz-section">
+      <div class="section-head"><div><p class="eyebrow">Forhåndsvisning</p><h3>Se og test quizer</h3><p>Spill som lærer uten at prøverunden lagres i elevresultater eller highscore.</p></div></div>
+      <div class="teacher-quiz-grid">${quizzes.map((quiz) => { const subject = subjects.find((item) => item.id === quiz.subjectId); return `<button class="teacher-quiz-card" type="button" data-preview-quiz="${quiz.id}"><span>${subject?.icon || "🧠"}</span><div><small>${escapeHtml(subject?.name || "Fag")}</small><strong>${escapeHtml(quiz.title)}</strong><small>${quiz.questionCount} spørsmål per runde</small></div><b>Test →</b></button>`; }).join("")}</div>
+    </section>
     <section class="admin-grid">
       <div class="panel admin-panel"><h3>Opprett elever</h3><form id="create-students-form"><label for="student-names">Elevnavn eller elevkoder</label><textarea id="student-names" rows="8" maxlength="1500" placeholder="Per 10D\nSara 10D\nElev 14" required></textarea><p class="hint">Bruk gjerne elevkoder dersom navn ikke skal lagres.</p><div class="form-message" id="create-message" role="status"></div><button class="primary full-width" id="create-students" type="submit">Opprett kontoer</button></form></div>
       <div class="panel admin-panel"><h3>Bytt lærerpassord</h3><form id="password-form"><label for="new-teacher-password">Nytt passord</label><input id="new-teacher-password" type="password" minlength="12" autocomplete="new-password" required><p class="hint">Minst 12 tegn. Bruk et passord bare du kjenner.</p><div class="form-message" id="password-message" role="status"></div><button class="secondary full-width" type="submit">Lagre nytt passord</button></form></div>
@@ -119,6 +124,7 @@ async function renderTeacherAdmin(created = []) {
         <div id="group-list" class="student-list group-list"><div class="empty">Henter grupper …</div></div>
       </div>
       <section id="group-members-panel" class="group-members-panel" hidden></section>
+      <section id="group-results-panel" class="group-results-panel" hidden></section>
     </section>
     <section class="student-list-section"><div class="section-head"><div><p class="eyebrow">Administrer</p><h3>Opprettede elever</h3></div></div><div id="student-list" class="student-list"><div class="empty">Henter elever …</div></div></section>
     <section id="student-results-panel" class="student-results-panel" hidden></section>
@@ -126,8 +132,24 @@ async function renderTeacherAdmin(created = []) {
   app.querySelector("#create-students-form").addEventListener("submit", handleCreateStudents);
   app.querySelector("#password-form").addEventListener("submit", handlePasswordChange);
   app.querySelector("#create-group-form").addEventListener("submit", handleCreateGroup);
+  app.querySelectorAll("[data-preview-quiz]").forEach((button) => button.addEventListener("click", () => renderTeacherQuizStart(quizzes.find((quiz) => quiz.id === button.dataset.previewQuiz))));
   app.querySelector("#print-accounts")?.addEventListener("click", () => window.print());
   await Promise.all([refreshStudentList(), refreshGroupList()]);
+}
+
+function renderTeacherQuizStart(meta) {
+  if (!state.teacher || !meta) return renderTeacherLogin();
+  state.teacherPreview = true;
+  state.quizMeta = meta;
+  state.subject = subjects.find((subject) => subject.id === meta.subjectId);
+  setView(`<button class="back" type="button" id="back-to-teacher">← Til lærersiden</button><section class="panel"><p class="eyebrow">Lærertest · ${escapeHtml(state.subject?.name || "Quiz")}</p><h2>${escapeHtml(meta.title)}</h2><p class="topic-summary">Du får ${meta.questionCount} tilfeldige spørsmål. Denne prøverunden lagres ikke.</p><div class="trust-note preview-note"><strong>👁 Forhåndsvisning</strong><span>Elevresultater og highscore påvirkes ikke.</span></div><button class="primary full-width" id="start-teacher-quiz" type="button">Start lærertest →</button></section>`);
+  app.querySelector("#back-to-teacher").addEventListener("click", () => renderTeacherAdmin());
+  app.querySelector("#start-teacher-quiz").addEventListener("click", async () => {
+    state.player = "Lærer";
+    const module = await import(meta.dataPath);
+    state.quiz = module.default;
+    startRound();
+  });
 }
 
 async function handleCreateStudents(event) {
@@ -183,7 +205,8 @@ async function refreshGroupList() {
   try {
     state.groups = await listGroups();
     source.innerHTML = `<option value="">Ingen – start med tom gruppe</option>${state.groups.map((group) => `<option value="${group.id}">${escapeHtml(group.name)} (${group.members.length})</option>`).join("")}`;
-    container.innerHTML = state.groups.length ? state.groups.map((group) => `<div class="student-row group-row"><div><strong>${escapeHtml(group.name)}</strong><span>${group.members.length} ${group.members.length === 1 ? "elev" : "elever"}</span></div><div class="student-actions"><button class="secondary edit-group" data-id="${group.id}" type="button">Administrer</button><button class="danger delete-group" data-id="${group.id}" data-name="${escapeHtml(group.name)}" type="button">Slett</button></div></div>`).join("") : '<div class="empty">Ingen grupper ennå.</div>';
+    container.innerHTML = state.groups.length ? state.groups.map((group) => `<div class="student-row group-row"><div><strong>${escapeHtml(group.name)}</strong><span>${group.members.length} ${group.members.length === 1 ? "elev" : "elever"}</span></div><div class="student-actions"><button class="primary view-group-results" data-id="${group.id}" type="button">Se resultater</button><button class="secondary edit-group" data-id="${group.id}" type="button">Administrer</button><button class="danger delete-group" data-id="${group.id}" data-name="${escapeHtml(group.name)}" type="button">Slett</button></div></div>`).join("") : '<div class="empty">Ingen grupper ennå.</div>';
+    container.querySelectorAll(".view-group-results").forEach((button) => button.addEventListener("click", () => handleViewGroupResults(button)));
     container.querySelectorAll(".edit-group").forEach((button) => button.addEventListener("click", () => renderGroupMembers(button.dataset.id)));
     container.querySelectorAll(".delete-group").forEach((button) => button.addEventListener("click", () => handleDeleteGroup(button)));
   } catch {
@@ -201,12 +224,67 @@ async function handleDeleteGroup(button) {
     const panel = app.querySelector("#group-members-panel");
     panel.hidden = true;
     panel.innerHTML = "";
+    const resultsPanel = app.querySelector("#group-results-panel");
+    resultsPanel.hidden = true;
+    resultsPanel.innerHTML = "";
     await refreshGroupList();
   } catch (error) {
     window.alert(error.message || "Kunne ikke slette gruppen.");
     button.disabled = false;
     button.textContent = "Slett";
   }
+}
+
+function defaultQuizForGroup(groupName) {
+  const normalized = groupName.toLocaleLowerCase("nb-NO");
+  const matchingSubject = subjects.find((subject) => normalized.includes(subject.name.toLocaleLowerCase("nb-NO")));
+  return quizzes.find((quiz) => quiz.subjectId === matchingSubject?.id)?.id || quizzes[0].id;
+}
+
+async function handleViewGroupResults(button) {
+  const panel = app.querySelector("#group-results-panel");
+  button.disabled = true;
+  button.textContent = "Henter …";
+  panel.hidden = false;
+  panel.innerHTML = '<div class="empty">Henter grupperesultater …</div>';
+  try {
+    state.groupReport = await getGroupResults(button.dataset.id);
+    const selected = new Set(state.groupReport.members.map((member) => member.id));
+    renderGroupResults(defaultQuizForGroup(state.groupReport.group.name), selected);
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    panel.innerHTML = `<div class="empty">${escapeHtml(error.message || "Kunne ikke hente grupperesultatene.")}</div>`;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Se resultater";
+  }
+}
+
+function renderGroupResults(quizId, selectedIds) {
+  const panel = app.querySelector("#group-results-panel");
+  const report = state.groupReport;
+  if (!panel || !report) return;
+  const selected = new Set([...selectedIds].filter((id) => report.members.some((member) => member.id === id)));
+  const summary = summarizeGroupResults(report.members, report.results, [...selected], quizId);
+  const rows = report.members.map((member) => {
+    const results = report.results.filter((row) => row.user_id === member.id && row.quiz_id === quizId);
+    const correct = results.reduce((sum, row) => sum + Number(row.correct_answers), 0);
+    const total = results.reduce((sum, row) => sum + Number(row.total_questions), 0);
+    const accuracy = total ? `${Math.round(correct / total * 100)} %` : "–";
+    const bestScore = results.length ? Math.max(...results.map((row) => Number(row.score))).toLocaleString("nb-NO") : "–";
+    const lastPlayed = results.length ? new Date(results[0].played_at).toLocaleDateString("nb-NO") : "–";
+    return `<tr class="${selected.has(member.id) ? "" : "not-selected"}"><td><label class="result-selector"><input type="checkbox" class="group-result-checkbox" value="${member.id}" ${selected.has(member.id) ? "checked" : ""}><span>${escapeHtml(member.username)}</span></label></td><td>${results.length}</td><td>${accuracy}</td><td>${bestScore}</td><td>${lastPlayed}</td><td><button class="secondary view-group-student" data-id="${member.id}" type="button">Åpne elev</button></td></tr>`;
+  }).join("");
+  panel.innerHTML = `<button class="back" id="close-group-results" type="button">← Lukk grupperesultatene</button><p class="eyebrow">Grupperesultater</p><div class="group-report-head"><div><h3>${escapeHtml(report.group.name)}</h3><p class="topic-summary">Velg quiz og kryss av elevene som skal inngå i sammendraget.</p></div><label for="group-result-quiz">Quiz<select id="group-result-quiz">${quizzes.map((quiz) => `<option value="${quiz.id}" ${quiz.id === quizId ? "selected" : ""}>${escapeHtml(subjects.find((subject) => subject.id === quiz.subjectId)?.name || "Fag")} – ${escapeHtml(quiz.title)}</option>`).join("")}</select></label></div><div class="result-stats teacher-stats group-summary"><div class="result-stat"><strong>${summary.selected}</strong><span>valgte elever</span></div><div class="result-stat"><strong>${summary.completed}</strong><span>har spilt</span></div><div class="result-stat"><strong>${summary.plays}</strong><span>runder totalt</span></div><div class="result-stat"><strong>${summary.plays ? `${summary.accuracy} %` : "–"}</strong><span>riktig samlet</span></div></div><div class="report-actions"><button class="secondary" id="select-all-results" type="button">Velg alle</button><button class="secondary" id="clear-result-selection" type="button">Fjern alle</button></div>${rows ? `<div class="history-scroll"><table class="result-history group-result-table"><thead><tr><th>Elev</th><th>Runder</th><th>Riktig</th><th>Beste poeng</th><th>Sist spilt</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="empty">Gruppen har ingen elever ennå.</div>'}`;
+  panel.querySelector("#close-group-results").addEventListener("click", () => { panel.hidden = true; panel.innerHTML = ""; state.groupReport = null; });
+  panel.querySelector("#group-result-quiz").addEventListener("change", (event) => renderGroupResults(event.target.value, selected));
+  panel.querySelector("#select-all-results").addEventListener("click", () => renderGroupResults(quizId, new Set(report.members.map((member) => member.id))));
+  panel.querySelector("#clear-result-selection").addEventListener("click", () => renderGroupResults(quizId, new Set()));
+  panel.querySelectorAll(".group-result-checkbox").forEach((checkbox) => checkbox.addEventListener("change", () => {
+    checkbox.checked ? selected.add(checkbox.value) : selected.delete(checkbox.value);
+    renderGroupResults(quizId, selected);
+  }));
+  panel.querySelectorAll(".view-group-student").forEach((studentButton) => studentButton.addEventListener("click", () => handleViewResults(studentButton)));
 }
 
 async function handleDeleteStudent(button) {
@@ -378,7 +456,7 @@ function renderQuestion() {
   const item = state.round[state.index];
   const progress = Math.round((state.index / state.round.length) * 100);
   const letters = ["A", "B", "C", "D"];
-  setView(`<section class="quiz-wrap"><div class="quiz-top"><div class="progress-track" aria-label="${progress} prosent fullført" style="--progress:${progress}%"><div class="progress-fill" style="width:${progress}%"></div></div><span class="stat-pill">🔥 ${state.streak} på rad</span><span class="stat-pill">${state.score.toLocaleString("nb-NO")} poeng</span></div><div class="question-card"><p class="question-count">Spørsmål ${state.index + 1} av ${state.round.length}</p><h2>${escapeHtml(item.question)}</h2></div><div class="answers">${item.answers.map((answer, index) => `<button class="answer" type="button" data-answer="${escapeHtml(answer)}"><span class="answer-letter">${letters[index]}</span>${escapeHtml(answer)}</button>`).join("")}</div><div class="feedback" id="feedback" hidden></div><div class="next-row" id="next-row"></div></section>`);
+  setView(`<section class="quiz-wrap">${state.teacherPreview ? '<div class="preview-banner">👁 Lærertest – resultatet lagres ikke</div>' : ""}<div class="quiz-top"><div class="progress-track" aria-label="${progress} prosent fullført" style="--progress:${progress}%"><div class="progress-fill" style="width:${progress}%"></div></div><span class="stat-pill">🔥 ${state.streak} på rad</span><span class="stat-pill">${state.score.toLocaleString("nb-NO")} poeng</span></div><div class="question-card"><p class="question-count">Spørsmål ${state.index + 1} av ${state.round.length}</p><h2>${escapeHtml(item.question)}</h2></div><div class="answers">${item.answers.map((answer, index) => `<button class="answer" type="button" data-answer="${escapeHtml(answer)}"><span class="answer-letter">${letters[index]}</span>${escapeHtml(answer)}</button>`).join("")}</div><div class="feedback" id="feedback" hidden></div><div class="next-row" id="next-row"></div></section>`);
   app.querySelectorAll("[data-answer]").forEach((button) => button.addEventListener("click", () => handleAnswer(button, item)));
 }
 
@@ -415,6 +493,13 @@ function handleAnswer(button, item) {
 
 async function finishRound() {
   state.score += perfectRoundBonus(state.correct, state.round.length);
+  if (state.teacherPreview) {
+    const accuracy = Math.round((state.correct / state.round.length) * 100);
+    setView(`<section class="panel center"><p class="eyebrow">Lærertesten er ferdig</p><h2>${escapeHtml(state.quizMeta.title)}</h2><div class="score-big">${state.score.toLocaleString("nb-NO")}</div><p class="result-line">poeng · ikke lagret</p><div class="result-stats"><div class="result-stat"><strong>${state.correct}/${state.round.length}</strong><span>riktige</span></div><div class="result-stat"><strong>${accuracy} %</strong><span>treffsikkerhet</span></div><div class="result-stat"><strong>${state.bestStreak} 🔥</strong><span>beste streak</span></div></div><div class="button-row"><button class="primary" id="preview-again" type="button">Test på nytt</button><button class="secondary" id="back-to-admin" type="button">Til lærersiden</button></div></section>`);
+    app.querySelector("#preview-again").addEventListener("click", startRound);
+    app.querySelector("#back-to-admin").addEventListener("click", () => renderTeacherAdmin());
+    return;
+  }
   const result = { quiz_id: state.quiz.id, player_name: state.player, score: state.score, correct_answers: state.correct, total_questions: state.round.length, best_streak: state.bestStreak, played_at: new Date().toISOString() };
   let stats;
   let leaderboard;

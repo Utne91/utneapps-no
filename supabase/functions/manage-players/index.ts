@@ -100,6 +100,39 @@ Deno.serve(async (request) => {
       return Response.json({ groups: result }, { headers });
     }
 
+    if (body.action === "group_results") {
+      const groupId = String(body.group_id || "");
+      const { data: group } = await admin
+        .from("student_groups")
+        .select("id,name")
+        .eq("id", groupId)
+        .eq("teacher_id", teacher.id)
+        .maybeSingle();
+      if (!group) return Response.json({ error: "Gruppen finnes ikke." }, { status: 404, headers });
+
+      const { data: memberships, error: memberError } = await admin
+        .from("student_group_members")
+        .select("user_id,profiles(username)")
+        .eq("group_id", groupId);
+      if (memberError) throw memberError;
+      const members = (memberships || []).flatMap((membership) => {
+        const profile = Array.isArray(membership.profiles) ? membership.profiles[0] : membership.profiles;
+        return profile ? [{ id: membership.user_id, username: profile.username }] : [];
+      }).sort((a, b) => a.username.localeCompare(b.username, "nb"));
+
+      const memberIds = members.map((member) => member.id);
+      const { data: results, error: resultError } = memberIds.length
+        ? await admin
+          .from("results")
+          .select("user_id,quiz_id,score,correct_answers,total_questions,best_streak,played_at")
+          .in("user_id", memberIds)
+          .order("played_at", { ascending: false })
+          .limit(5000)
+        : { data: [], error: null };
+      if (resultError) throw resultError;
+      return Response.json({ group, members, results: results || [] }, { headers });
+    }
+
     if (body.action === "create_group") {
       const name = normalize(body.name);
       const sourceGroupId = body.source_group_id ? String(body.source_group_id) : "";

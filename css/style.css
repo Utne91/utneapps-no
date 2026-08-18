@@ -191,6 +191,16 @@ input:focus, textarea:focus, select:focus { border-color: var(--mint-dark); outl
 .empty { padding: 38px 20px; text-align: center; color: var(--muted); }
 
 .teacher-admin { max-width: 900px; margin: 0 auto; }
+.teacher-quiz-section { margin-bottom: 28px; padding: 26px; border-radius: 24px; background: white; box-shadow: var(--shadow); }
+.teacher-quiz-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.teacher-quiz-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; min-height: 92px; padding: 16px 18px; border: 1px solid #e1e8e4; border-radius: 16px; background: var(--paper); text-align: left; cursor: pointer; }
+.teacher-quiz-card:hover { border-color: var(--mint-dark); transform: translateY(-2px); }
+.teacher-quiz-card > span { font-size: 1.7rem; }
+.teacher-quiz-card div { display: flex; flex-direction: column; gap: 3px; }
+.teacher-quiz-card small { color: var(--muted); }
+.teacher-quiz-card b { color: var(--mint-dark); white-space: nowrap; }
+.preview-note { margin: 0 0 24px; }
+.preview-banner { margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; color: #7a4b00; background: #fff0bd; font-weight: 800; text-align: center; }
 .admin-grid { display: grid; grid-template-columns: 1.25fr .75fr; gap: 18px; align-items: start; }
 .admin-panel { max-width: none; width: 100%; margin: 0; padding: 28px; }
 .admin-panel h3 { margin-bottom: 22px; }
@@ -214,11 +224,21 @@ input:focus, textarea:focus, select:focus { border-color: var(--mint-dark); outl
 .group-create-card label:not(:first-child) { margin-top: 16px; }
 .group-create-card textarea { min-height: 130px; }
 .group-list { align-self: stretch; }
-.group-members-panel { scroll-margin-top: 20px; margin-top: 24px; padding: 24px; border: 2px solid #e4e9e6; border-radius: 20px; }
-.group-members-panel h3 { font-size: 2rem; }
+.group-members-panel, .group-results-panel { scroll-margin-top: 20px; margin-top: 24px; padding: 24px; border: 2px solid #e4e9e6; border-radius: 20px; }
+.group-members-panel h3, .group-results-panel h3 { font-size: 2rem; }
 .member-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; max-height: 390px; margin-bottom: 18px; overflow-y: auto; }
 .member-check { display: flex; align-items: center; gap: 10px; margin: 0; padding: 11px 13px; border: 1px solid #dde5e1; border-radius: 12px; background: white; cursor: pointer; }
 .member-check input { width: 20px; min-height: 20px; height: 20px; margin: 0; padding: 0; accent-color: var(--green); }
+.group-report-head { display: grid; grid-template-columns: 1fr minmax(250px, .65fr); gap: 20px; align-items: end; }
+.group-report-head label { margin: 0; }
+.group-report-head select { margin-top: 8px; }
+.group-summary { margin-top: 18px; }
+.report-actions { display: flex; gap: 8px; margin-top: 18px; }
+.report-actions .secondary { min-height: 42px; padding: 9px 14px; }
+.result-selector { display: flex; align-items: center; gap: 10px; margin: 0; white-space: nowrap; cursor: pointer; }
+.result-selector input { width: 20px; min-height: 20px; height: 20px; margin: 0; padding: 0; accent-color: var(--green); }
+.group-result-table tr.not-selected td { color: #8d9995; background: #fafafa; }
+.group-result-table .view-group-student { min-height: 38px; padding: 7px 11px; white-space: nowrap; }
 .student-results-panel h3 { font-size: 2rem; }
 .teacher-stats { grid-template-columns: repeat(4, 1fr); }
 .history-scroll { margin-top: 22px; overflow-x: auto; border: 1px solid #e4e9e6; border-radius: 16px; }
@@ -250,9 +270,10 @@ footer { min-height: 68px; display: flex; justify-content: center; align-items: 
   .result-stats { grid-template-columns: 1fr 1fr; }
   .panel { margin-top: 8px; }
   .admin-grid { grid-template-columns: 1fr; }
+  .teacher-quiz-grid { grid-template-columns: 1fr; }
   .credentials, .student-list-section { padding: 18px; }
   .group-section { padding: 18px; }
-  .group-layout, .member-grid { grid-template-columns: 1fr; }
+  .group-layout, .member-grid, .group-report-head { grid-template-columns: 1fr; }
   .student-row { align-items: flex-start; }
   .student-row .student-actions { flex-direction: column; align-items: stretch; }
   .teacher-stats { grid-template-columns: 1fr 1fr; }

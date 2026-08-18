@@ -16,6 +16,10 @@ Læreren oppretter beskyttede elevprofiler fra lærersiden. Systemet lager en se
 
 Læreren kan også lage faggrupper, legge samme elev i flere grupper og kopiere medlemslisten fra en eksisterende gruppe når en ny gruppe opprettes. Elevnavn kan limes rett inn når gruppen lages; manglende kontoer og PIN-koder opprettes automatisk, mens eksisterende elever bare legges til. Grupper og enkeltelever kan slettes etter en tydelig bekreftelse. Sletting av en elev fjerner kontoen, gruppemedlemskapene og elevens quizresultater.
 
+Fra hver gruppe kan læreren velge quiz og se samlet antall runder og treffprosent. En avkrysningsliste bestemmer hvilke elever som inngår i sammendraget, og hver elev kan åpnes for full resultathistorikk.
+
+Lærersiden har også en forhåndsvisning der læreren kan spille og kontrollere alle quizene uten at prøverunden lagres som elevresultat eller i highscore.
+
 E-postbekreftelse må være slått av for e-postleverandøren i Supabase Auth, siden de interne konto-ID-ene ikke er ekte e-postadresser.
 
 Læreradministrasjonen bruker Edge Function-en `manage-players`. Den krever en innlogget bruker som også finnes i `public.teacher_users`.

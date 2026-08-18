@@ -54,6 +54,10 @@ export async function listGroups() {
   return (await managePlayers({ action: "list_groups" })).groups;
 }
 
+export async function getGroupResults(groupId) {
+  return managePlayers({ action: "group_results", group_id: groupId });
+}
+
 export async function createGroup(name, sourceGroupId = "", usernames = []) {
   return managePlayers({ action: "create_group", name, source_group_id: sourceGroupId || null, usernames });
 }
@@ -75,5 +79,20 @@ export function summarizeStudentResults(results) {
     accuracy: total ? Math.round((correct / total) * 100) : 0,
     bestScore: plays ? Math.max(...results.map((row) => Number(row.score))) : 0,
     lastPlayed: plays ? results[0].played_at : null
+  };
+}
+
+export function summarizeGroupResults(members, results, selectedIds, quizId) {
+  const memberIds = new Set(members.map((member) => member.id));
+  const selected = new Set(selectedIds.filter((id) => memberIds.has(id)));
+  const relevant = results.filter((row) => selected.has(row.user_id) && row.quiz_id === quizId);
+  const completed = new Set(relevant.map((row) => row.user_id)).size;
+  const correct = relevant.reduce((sum, row) => sum + Number(row.correct_answers), 0);
+  const total = relevant.reduce((sum, row) => sum + Number(row.total_questions), 0);
+  return {
+    selected: selected.size,
+    completed,
+    plays: relevant.length,
+    accuracy: total ? Math.round((correct / total) * 100) : 0
   };
 }

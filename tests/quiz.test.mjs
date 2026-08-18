@@ -3,7 +3,7 @@ import { shuffle, createRound } from "../js/quiz-engine.js";
 import { answerPoints, perfectRoundBonus, streakBonus } from "../js/scoring.js";
 import { createBonusState, resolveCorrectBonus, registerMiss } from "../js/bonuses.js";
 import { normalizeUsername, isValidUsername, isValidPin } from "../js/auth.js";
-import { summarizeStudentResults } from "../js/admin.js";
+import { summarizeStudentResults, summarizeGroupResults } from "../js/admin.js";
 import informationSocietyQuiz from "../data/quizzes/naturfag/informasjonssamfunnet.js";
 
 const sequence = [1, 2, 3, 4];
@@ -71,5 +71,17 @@ assert.deepEqual(summarizeStudentResults([
   { correct_answers: 9, total_questions: 10, score: 6100, played_at: "2026-08-16T12:00:00Z" }
 ]), { plays: 2, accuracy: 80, bestScore: 6100, lastPlayed: "2026-08-17T12:00:00Z" });
 assert.deepEqual(summarizeStudentResults([]), { plays: 0, accuracy: 0, bestScore: 0, lastPlayed: null });
+
+assert.deepEqual(summarizeGroupResults(
+  [{ id: "a" }, { id: "b" }, { id: "c" }],
+  [
+    { user_id: "a", quiz_id: "natur", correct_answers: 15, total_questions: 20 },
+    { user_id: "a", quiz_id: "natur", correct_answers: 17, total_questions: 20 },
+    { user_id: "b", quiz_id: "natur", correct_answers: 10, total_questions: 20 },
+    { user_id: "b", quiz_id: "annet", correct_answers: 20, total_questions: 20 }
+  ],
+  ["a", "b"],
+  "natur"
+), { selected: 2, completed: 2, plays: 3, accuracy: 70 });
 
 console.log("Alle tester bestått.");
