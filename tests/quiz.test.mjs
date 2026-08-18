@@ -5,6 +5,7 @@ import { createBonusState, resolveCorrectBonus, registerMiss } from "../js/bonus
 import { normalizeUsername, isValidUsername, isValidPin } from "../js/auth.js";
 import { summarizeStudentResults, summarizeGroupResults } from "../js/admin.js";
 import informationSocietyQuiz from "../data/quizzes/naturfag/informasjonssamfunnet.js";
+import welfareForAllQuiz from "../data/quizzes/samfunnsfag/velferd-for-alle.js";
 
 const sequence = [1, 2, 3, 4];
 assert.deepEqual(shuffle(sequence, () => 0), [2, 3, 4, 1]);
@@ -43,6 +44,12 @@ const informationSocietyRound = createRound(informationSocietyQuiz);
 assert.equal(informationSocietyRound.length, 20, "each information society round should contain 20 questions");
 assert.equal(new Set(informationSocietyRound.map((item) => item.question)).size, 20, "a round should not repeat questions");
 informationSocietyRound.forEach((item) => assert.equal(item.answers.length, 4));
+
+assert.equal(welfareForAllQuiz.questions.length, 48, "the question bank should contain all 48 welfare questions");
+const welfareForAllRound = createRound(welfareForAllQuiz);
+assert.equal(welfareForAllRound.length, 20, "each welfare round should contain 20 questions");
+assert.equal(new Set(welfareForAllRound.map((item) => item.question)).size, 20, "a welfare round should not repeat questions");
+welfareForAllRound.forEach((item) => assert.equal(item.answers.length, 4));
 
 assert.equal(streakBonus(1), 0);
 assert.equal(streakBonus(2), 50);

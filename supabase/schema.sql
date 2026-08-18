@@ -87,6 +87,7 @@ with check (
   and coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false) = false
   and (
     (quiz_id = 'den-kalde-krigen' and total_questions = 10)
+    or (quiz_id = 'velferd-for-alle' and total_questions = 20)
     or (quiz_id = 'informasjonssamfunnet' and total_questions = 20)
   )
   and char_length(trim(player_name)) between 1 and 24

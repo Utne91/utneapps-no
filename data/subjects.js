@@ -17,6 +17,14 @@ export const quizzes = [
     dataPath: "../data/quizzes/samfunnsfag/den-kalde-krigen.js"
   },
   {
+    id: "velferd-for-alle",
+    subjectId: "samfunnsfag",
+    title: "Velferd for alle",
+    description: "Velferdsstat, levekår og framtidige utfordringer",
+    questionCount: 20,
+    dataPath: "../data/quizzes/samfunnsfag/velferd-for-alle.js"
+  },
+  {
     id: "informasjonssamfunnet",
     subjectId: "naturfag",
     title: "Informasjonssamfunnet",
