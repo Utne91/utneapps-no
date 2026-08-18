@@ -4,6 +4,7 @@ import { answerPoints, perfectRoundBonus, streakBonus } from "../js/scoring.js";
 import { createBonusState, resolveCorrectBonus, registerMiss } from "../js/bonuses.js";
 import { normalizeUsername, isValidUsername, isValidPin } from "../js/auth.js";
 import { summarizeStudentResults } from "../js/admin.js";
+import informationSocietyQuiz from "../data/quizzes/naturfag/informasjonssamfunnet.js";
 
 const sequence = [1, 2, 3, 4];
 assert.deepEqual(shuffle(sequence, () => 0), [2, 3, 4, 1]);
@@ -36,6 +37,12 @@ const balancedRound = createRound(balancedQuiz);
 const positionCounts = [0, 0, 0, 0];
 balancedRound.forEach((item) => { positionCounts[item.answers.indexOf(item.correct)] += 1; });
 assert.ok(Math.max(...positionCounts) - Math.min(...positionCounts) <= 1, "A–D should be balanced per round");
+
+assert.equal(informationSocietyQuiz.questions.length, 37, "the question bank should contain all 37 workbook questions");
+const informationSocietyRound = createRound(informationSocietyQuiz);
+assert.equal(informationSocietyRound.length, 20, "each information society round should contain 20 questions");
+assert.equal(new Set(informationSocietyRound.map((item) => item.question)).size, 20, "a round should not repeat questions");
+informationSocietyRound.forEach((item) => assert.equal(item.answers.length, 4));
 
 assert.equal(streakBonus(1), 0);
 assert.equal(streakBonus(2), 50);

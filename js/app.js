@@ -4,12 +4,12 @@ import { answerPoints, perfectRoundBonus } from "./scoring.js";
 import { createBonusState, resolveCorrectBonus, registerMiss, consumeMultiplier } from "./bonuses.js";
 import { saveResult, getLeaderboard, getPlayerStats, getProfile, isConfigured } from "./database.js";
 import { restoreSession, login, loginTeacher, logout, changePassword, getCurrentUser } from "./auth.js";
-import { isTeacher, listStudents, createStudents, resetStudentPin, getStudentResults, summarizeStudentResults } from "./admin.js?v=2";
+import { isTeacher, listStudents, createStudents, resetStudentPin, deleteStudent, getStudentResults, summarizeStudentResults, listGroups, createGroup, setGroupMembers, deleteGroup } from "./admin.js?v=4";
 
 const app = document.querySelector("#app");
 const scoresButton = document.querySelector("#scores-button");
 const accountButton = document.querySelector("#account-button");
-const state = { profile: null, teacher: false, subject: null, quizMeta: quizzes[0], quiz: null, player: "", round: [], index: 0, score: 0, correct: 0, streak: 0, bestStreak: 0, answered: false, bonuses: createBonusState() };
+const state = { profile: null, teacher: false, subject: null, quizMeta: quizzes[0], quiz: null, player: "", round: [], index: 0, score: 0, correct: 0, streak: 0, bestStreak: 0, answered: false, bonuses: createBonusState(), students: [], groups: [] };
 const escapeHtml = (value) => String(value).replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
 
 function setView(html) { app.innerHTML = html; window.scrollTo({ top: 0, behavior: "smooth" }); }
@@ -94,11 +94,40 @@ function credentialRows(accounts) {
 
 async function renderTeacherAdmin(created = []) {
   if (!state.teacher) return renderTeacherLogin();
-  setView(`<section class="teacher-admin"><div class="section-head"><div><p class="eyebrow">Lærerside</p><h2>Elevkontoer</h2><p>Lim inn ett elevnavn per linje. Unike PIN-koder lages automatisk.</p></div></div><section class="admin-grid"><div class="panel admin-panel"><h3>Opprett elever</h3><form id="create-students-form"><label for="student-names">Elevnavn eller elevkoder</label><textarea id="student-names" rows="8" maxlength="1500" placeholder="Per 7B\nSara 7B\nElev 14" required></textarea><p class="hint">Bruk gjerne elevkoder dersom navn ikke skal lagres.</p><div class="form-message" id="create-message" role="status"></div><button class="primary full-width" id="create-students" type="submit">Opprett kontoer</button></form></div><div class="panel admin-panel"><h3>Bytt lærerpassord</h3><form id="password-form"><label for="new-teacher-password">Nytt passord</label><input id="new-teacher-password" type="password" minlength="12" autocomplete="new-password" required><p class="hint">Minst 12 tegn. Bruk et passord bare du kjenner.</p><div class="form-message" id="password-message" role="status"></div><button class="secondary full-width" type="submit">Lagre nytt passord</button></form></div></section>${created.length ? `<section class="credentials print-area"><div class="section-head"><div><p class="eyebrow">Nye kontoer</p><h3>Skriv ut eller del ut</h3></div><button class="secondary no-print" id="print-accounts" type="button">Skriv ut</button></div><table><thead><tr><th>Brukernavn</th><th>PIN</th></tr></thead><tbody>${credentialRows(created)}</tbody></table><p class="credential-warning">PIN-kodene vises bare nå. Skriv ut listen før du går videre.</p></section>` : ""}<section class="student-list-section"><div class="section-head"><div><p class="eyebrow">Administrer</p><h3>Opprettede elever</h3></div></div><div id="student-list" class="student-list"><div class="empty">Henter elever …</div></div></section><section id="student-results-panel" class="student-results-panel" hidden></section></section>`);
+  setView(`<section class="teacher-admin">
+    <div class="section-head"><div><p class="eyebrow">Lærerside</p><h2>Elever og grupper</h2><p>Opprett elevkontoer og organiser dem i faggrupper.</p></div></div>
+    <section class="admin-grid">
+      <div class="panel admin-panel"><h3>Opprett elever</h3><form id="create-students-form"><label for="student-names">Elevnavn eller elevkoder</label><textarea id="student-names" rows="8" maxlength="1500" placeholder="Per 10D\nSara 10D\nElev 14" required></textarea><p class="hint">Bruk gjerne elevkoder dersom navn ikke skal lagres.</p><div class="form-message" id="create-message" role="status"></div><button class="primary full-width" id="create-students" type="submit">Opprett kontoer</button></form></div>
+      <div class="panel admin-panel"><h3>Bytt lærerpassord</h3><form id="password-form"><label for="new-teacher-password">Nytt passord</label><input id="new-teacher-password" type="password" minlength="12" autocomplete="new-password" required><p class="hint">Minst 12 tegn. Bruk et passord bare du kjenner.</p><div class="form-message" id="password-message" role="status"></div><button class="secondary full-width" type="submit">Lagre nytt passord</button></form></div>
+    </section>
+    ${created.length ? `<section class="credentials print-area"><div class="section-head"><div><p class="eyebrow">Nye kontoer</p><h3>Skriv ut eller del ut</h3></div><button class="secondary no-print" id="print-accounts" type="button">Skriv ut</button></div><table><thead><tr><th>Brukernavn</th><th>PIN</th></tr></thead><tbody>${credentialRows(created)}</tbody></table><p class="credential-warning">PIN-kodene vises bare nå. Skriv ut listen før du går videre.</p></section>` : ""}
+    <section class="group-section">
+      <div class="section-head"><div><p class="eyebrow">Faggrupper</p><h3>Grupper</h3><p>Lag en tom gruppe, eller kopier elevene fra en gruppe du allerede har.</p></div></div>
+      <div class="group-layout">
+        <form id="create-group-form" class="group-create-card">
+          <label for="group-name">Navn på ny gruppe</label>
+          <input id="group-name" maxlength="60" required placeholder="Naturfag 10D">
+          <label for="group-students">Elever i gruppen</label>
+          <textarea id="group-students" rows="5" maxlength="1500" placeholder="Per 10D\nSara 10D\nElev 14"></textarea>
+          <p class="hint">Én elev per linje. Nye elevkontoer og PIN-koder opprettes automatisk. Elever som finnes fra før, legges bare til.</p>
+          <label for="source-group">Kopier elever fra</label>
+          <select id="source-group"><option value="">Ingen – start med tom gruppe</option></select>
+          <p class="hint">Du kan både kopiere en gruppe og legge til flere navn. Originalgruppen beholdes uendret.</p>
+          <div class="form-message" id="group-message" role="status"></div>
+          <button class="primary full-width" id="create-group" type="submit">Opprett gruppe</button>
+        </form>
+        <div id="group-list" class="student-list group-list"><div class="empty">Henter grupper …</div></div>
+      </div>
+      <section id="group-members-panel" class="group-members-panel" hidden></section>
+    </section>
+    <section class="student-list-section"><div class="section-head"><div><p class="eyebrow">Administrer</p><h3>Opprettede elever</h3></div></div><div id="student-list" class="student-list"><div class="empty">Henter elever …</div></div></section>
+    <section id="student-results-panel" class="student-results-panel" hidden></section>
+  </section>`);
   app.querySelector("#create-students-form").addEventListener("submit", handleCreateStudents);
   app.querySelector("#password-form").addEventListener("submit", handlePasswordChange);
+  app.querySelector("#create-group-form").addEventListener("submit", handleCreateGroup);
   app.querySelector("#print-accounts")?.addEventListener("click", () => window.print());
-  await refreshStudentList();
+  await Promise.all([refreshStudentList(), refreshGroupList()]);
 }
 
 async function handleCreateStudents(event) {
@@ -139,10 +168,125 @@ async function refreshStudentList() {
   const container = app.querySelector("#student-list");
   try {
     const students = await listStudents();
-    container.innerHTML = students.length ? students.map((student) => `<div class="student-row"><div><strong>${escapeHtml(student.username)}</strong><span>Opprettet ${new Date(student.created_at).toLocaleDateString("nb-NO")}</span></div><div class="student-actions"><button class="primary view-results" data-id="${student.id}" type="button">Se resultater</button><button class="secondary reset-pin" data-id="${student.id}" type="button">Ny PIN</button></div></div>`).join("") : '<div class="empty">Ingen elevkontoer ennå.</div>';
+    state.students = students;
+    container.innerHTML = students.length ? students.map((student) => `<div class="student-row"><div><strong>${escapeHtml(student.username)}</strong><span>Opprettet ${new Date(student.created_at).toLocaleDateString("nb-NO")}</span></div><div class="student-actions"><button class="primary view-results" data-id="${student.id}" type="button">Se resultater</button><button class="secondary reset-pin" data-id="${student.id}" type="button">Ny PIN</button><button class="danger delete-student" data-id="${student.id}" data-name="${escapeHtml(student.username)}" type="button">Slett</button></div></div>`).join("") : '<div class="empty">Ingen elevkontoer ennå.</div>';
     container.querySelectorAll(".view-results").forEach((button) => button.addEventListener("click", () => handleViewResults(button)));
     container.querySelectorAll(".reset-pin").forEach((button) => button.addEventListener("click", () => handleResetPin(button)));
+    container.querySelectorAll(".delete-student").forEach((button) => button.addEventListener("click", () => handleDeleteStudent(button)));
   } catch { container.innerHTML = '<div class="empty">Kunne ikke hente elevlisten.</div>'; }
+}
+
+async function refreshGroupList() {
+  const container = app.querySelector("#group-list");
+  const source = app.querySelector("#source-group");
+  if (!container || !source) return;
+  try {
+    state.groups = await listGroups();
+    source.innerHTML = `<option value="">Ingen – start med tom gruppe</option>${state.groups.map((group) => `<option value="${group.id}">${escapeHtml(group.name)} (${group.members.length})</option>`).join("")}`;
+    container.innerHTML = state.groups.length ? state.groups.map((group) => `<div class="student-row group-row"><div><strong>${escapeHtml(group.name)}</strong><span>${group.members.length} ${group.members.length === 1 ? "elev" : "elever"}</span></div><div class="student-actions"><button class="secondary edit-group" data-id="${group.id}" type="button">Administrer</button><button class="danger delete-group" data-id="${group.id}" data-name="${escapeHtml(group.name)}" type="button">Slett</button></div></div>`).join("") : '<div class="empty">Ingen grupper ennå.</div>';
+    container.querySelectorAll(".edit-group").forEach((button) => button.addEventListener("click", () => renderGroupMembers(button.dataset.id)));
+    container.querySelectorAll(".delete-group").forEach((button) => button.addEventListener("click", () => handleDeleteGroup(button)));
+  } catch {
+    container.innerHTML = '<div class="empty">Kunne ikke hente gruppene.</div>';
+  }
+}
+
+async function handleDeleteGroup(button) {
+  const name = button.dataset.name;
+  if (!window.confirm(`Slette gruppen «${name}»? Elevkontoene og resultatene deres beholdes.`)) return;
+  button.disabled = true;
+  button.textContent = "Sletter …";
+  try {
+    await deleteGroup(button.dataset.id);
+    const panel = app.querySelector("#group-members-panel");
+    panel.hidden = true;
+    panel.innerHTML = "";
+    await refreshGroupList();
+  } catch (error) {
+    window.alert(error.message || "Kunne ikke slette gruppen.");
+    button.disabled = false;
+    button.textContent = "Slett";
+  }
+}
+
+async function handleDeleteStudent(button) {
+  const name = button.dataset.name;
+  if (!window.confirm(`Slette eleven «${name}» permanent? Konto, gruppemedlemskap og alle quizresultater slettes. Dette kan ikke angres.`)) return;
+  button.disabled = true;
+  button.textContent = "Sletter …";
+  try {
+    await deleteStudent(button.dataset.id);
+    const resultsPanel = app.querySelector("#student-results-panel");
+    resultsPanel.hidden = true;
+    resultsPanel.innerHTML = "";
+    await Promise.all([refreshStudentList(), refreshGroupList()]);
+  } catch (error) {
+    window.alert(error.message || "Kunne ikke slette eleven.");
+    button.disabled = false;
+    button.textContent = "Slett";
+  }
+}
+
+async function handleCreateGroup(event) {
+  event.preventDefault();
+  const name = app.querySelector("#group-name").value.trim();
+  const sourceGroupId = app.querySelector("#source-group").value;
+  const usernames = app.querySelector("#group-students").value.split("\n").map((username) => username.trim()).filter(Boolean);
+  const button = app.querySelector("#create-group");
+  const message = app.querySelector("#group-message");
+  button.disabled = true;
+  button.textContent = "Oppretter …";
+  message.textContent = "";
+  try {
+    const result = await createGroup(name, sourceGroupId, usernames);
+    if (result.accounts?.length) {
+      await renderTeacherAdmin(result.accounts);
+      return;
+    }
+    event.target.reset();
+    message.textContent = sourceGroupId || usernames.length ? "Gruppen er opprettet med elever." : "Gruppen er opprettet.";
+    message.className = "form-message success";
+    await refreshGroupList();
+  } catch (error) {
+    message.textContent = error.message || "Kunne ikke opprette gruppen.";
+    message.className = "form-message error";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Opprett gruppe";
+  }
+}
+
+function renderGroupMembers(groupId) {
+  const group = state.groups.find((item) => item.id === groupId);
+  const panel = app.querySelector("#group-members-panel");
+  if (!group || !panel) return;
+  const selected = new Set(group.members.map((member) => member.id));
+  panel.hidden = false;
+  panel.innerHTML = `<button class="back" id="close-group" type="button">← Lukk</button><p class="eyebrow">Administrer gruppe</p><h3>${escapeHtml(group.name)}</h3><p class="topic-summary">Kryss av elevene som skal være med i gruppen.</p><form id="group-members-form"><div class="member-grid">${state.students.length ? state.students.map((student) => `<label class="member-check"><input type="checkbox" name="group-member" value="${student.id}" ${selected.has(student.id) ? "checked" : ""}><span>${escapeHtml(student.username)}</span></label>`).join("") : '<div class="empty">Opprett elevkontoer først.</div>'}</div><div class="form-message" id="members-message" role="status"></div><button class="primary" id="save-members" type="submit">Lagre elever</button></form>`;
+  panel.querySelector("#close-group").addEventListener("click", () => { panel.hidden = true; panel.innerHTML = ""; });
+  panel.querySelector("#group-members-form").addEventListener("submit", (event) => handleSaveGroupMembers(event, groupId));
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function handleSaveGroupMembers(event, groupId) {
+  event.preventDefault();
+  const button = app.querySelector("#save-members");
+  const message = app.querySelector("#members-message");
+  const memberIds = [...event.target.querySelectorAll('input[name="group-member"]:checked')].map((input) => input.value);
+  button.disabled = true;
+  button.textContent = "Lagrer …";
+  try {
+    await setGroupMembers(groupId, memberIds);
+    message.textContent = "Gruppen er oppdatert.";
+    message.className = "form-message success";
+    await refreshGroupList();
+  } catch (error) {
+    message.textContent = error.message || "Kunne ikke lagre gruppen.";
+    message.className = "form-message error";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Lagre elever";
+  }
 }
 
 function quizTitle(id) {
@@ -186,6 +330,7 @@ async function handleResetPin(button) {
 function renderHome() {
   if (!state.profile) return renderAuth();
   state.subject = null;
+  const activeSubjectCount = subjects.filter((subject) => subject.active).length;
   setView(`
     <section class="hero">
       <p class="eyebrow">Hei, ${escapeHtml(state.profile.username)}! Klar for en runde?</p>
@@ -193,9 +338,9 @@ function renderHome() {
       <p class="lead">Velg et fag, test deg selv og se om du klarer å slå din egen beste poengsum.</p>
     </section>
     <section>
-      <div class="section-head"><div><h2>Velg fag</h2><p>Ett fag er klart nå. Flere kommer.</p></div></div>
+      <div class="section-head"><div><h2>Velg fag</h2><p>${activeSubjectCount} fag er klare nå. Flere kommer.</p></div></div>
       <div class="grid">
-        ${subjects.map((subject) => `<button class="card ${subject.active ? "" : "disabled"}" type="button" data-subject="${subject.id}" ${subject.active ? "" : "disabled"}><span class="card-icon">${subject.icon}</span><h3>${subject.name}</h3><p>${subject.description}</p>${subject.active ? '<span class="tag">1 quiz klar</span>' : '<span class="tag">Kommer snart</span>'}</button>`).join("")}
+        ${subjects.map((subject) => { const quizCount = quizForSubject(subject.id).length; return `<button class="card ${subject.active ? "" : "disabled"}" type="button" data-subject="${subject.id}" ${subject.active ? "" : "disabled"}><span class="card-icon">${subject.icon}</span><h3>${subject.name}</h3><p>${subject.description}</p>${subject.active ? `<span class="tag">${quizCount} quiz klar</span>` : '<span class="tag">Kommer snart</span>'}</button>`; }).join("")}
       </div>
     </section>`);
   app.querySelectorAll("[data-subject]").forEach((button) => button.addEventListener("click", () => renderTopics(button.dataset.subject)));

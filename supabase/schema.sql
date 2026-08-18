@@ -49,7 +49,7 @@ create table if not exists public.results (
     char_length(trim(player_name)) between 1 and 24
     and player_name ~ '^[[:alnum:] æøåÆØÅ._-]+$'
   ),
-  score integer not null check (score between 0 and 21000),
+  score integer not null check (score between 0 and 50000),
   correct_answers integer not null check (correct_answers between 0 and 100),
   total_questions integer not null check (total_questions between 1 and 100),
   best_streak integer not null check (best_streak between 0 and 100),
@@ -67,6 +67,9 @@ create index if not exists results_quiz_score_idx on public.results (quiz_id, sc
 create index if not exists results_quiz_player_idx on public.results (quiz_id, lower(player_name));
 create index if not exists results_user_id_idx on public.results (user_id);
 
+alter table public.results drop constraint if exists results_score_check;
+alter table public.results add constraint results_score_check check (score between 0 and 50000);
+
 alter table public.results enable row level security;
 
 drop policy if exists "Public can read quiz results" on public.results;
@@ -82,12 +85,14 @@ with check (
   (select auth.uid()) = user_id
   and player_name = (select username from public.profiles where id = (select auth.uid()))
   and coalesce(((select auth.jwt()) ->> 'is_anonymous')::boolean, false) = false
-  and quiz_id = 'den-kalde-krigen'
+  and (
+    (quiz_id = 'den-kalde-krigen' and total_questions = 10)
+    or (quiz_id = 'informasjonssamfunnet' and total_questions = 20)
+  )
   and char_length(trim(player_name)) between 1 and 24
   and player_name ~ '^[[:alnum:] æøåÆØÅ._-]+$'
-  and score between 0 and 21000
+  and score between 0 and 50000
   and correct_answers between 0 and total_questions
-  and total_questions = 10
   and best_streak between 0 and correct_answers
   and played_at between now() - interval '10 minutes' and now() + interval '1 minute'
 );
@@ -96,3 +101,32 @@ revoke all on public.results from anon, authenticated;
 grant select, insert on public.results to authenticated;
 revoke all on sequence public.results_id_seq from anon, authenticated;
 grant usage, select on sequence public.results_id_seq to authenticated;
+
+create table if not exists public.student_groups (
+  id uuid primary key default gen_random_uuid(),
+  teacher_id uuid not null references auth.users(id) on delete cascade,
+  name text not null check (char_length(trim(name)) between 2 and 60),
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists student_groups_teacher_name_unique_idx
+on public.student_groups (teacher_id, lower(trim(name)));
+
+create index if not exists student_groups_teacher_idx
+on public.student_groups (teacher_id, name);
+
+alter table public.student_groups enable row level security;
+revoke all on public.student_groups from anon, authenticated;
+
+create table if not exists public.student_group_members (
+  group_id uuid not null references public.student_groups(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  added_at timestamptz not null default now(),
+  primary key (group_id, user_id)
+);
+
+create index if not exists student_group_members_user_idx
+on public.student_group_members (user_id, group_id);
+
+alter table public.student_group_members enable row level security;
+revoke all on public.student_group_members from anon, authenticated;

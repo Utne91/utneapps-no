@@ -42,8 +42,28 @@ export async function resetStudentPin(id) {
   return managePlayers({ action: "reset_pin", id });
 }
 
+export async function deleteStudent(id) {
+  return managePlayers({ action: "delete_student", id });
+}
+
 export async function getStudentResults(id) {
   return managePlayers({ action: "student_results", id });
+}
+
+export async function listGroups() {
+  return (await managePlayers({ action: "list_groups" })).groups;
+}
+
+export async function createGroup(name, sourceGroupId = "", usernames = []) {
+  return managePlayers({ action: "create_group", name, source_group_id: sourceGroupId || null, usernames });
+}
+
+export async function setGroupMembers(groupId, memberIds) {
+  return managePlayers({ action: "set_group_members", group_id: groupId, member_ids: memberIds });
+}
+
+export async function deleteGroup(groupId) {
+  return managePlayers({ action: "delete_group", group_id: groupId });
 }
 
 export function summarizeStudentResults(results) {
