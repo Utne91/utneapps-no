@@ -1,4 +1,4 @@
-import { subjects, quizzes } from "../data/subjects.js";
+import { subjects, quizzes } from "../data/subjects.js?v=10";
 import { createRound } from "./quiz-engine.js";
 import { answerPoints, perfectRoundBonus } from "./scoring.js";
 import { createBonusState, resolveCorrectBonus, registerMiss, consumeMultiplier } from "./bonuses.js";
